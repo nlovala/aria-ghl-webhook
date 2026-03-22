@@ -10,8 +10,8 @@ app.post('/ghl-webhook', async (req, res) => {
     res.status(200).send('Webhook received');
 
     try {
-        // Extract the data in the exact format GHL Workflows send it
         const contactId = req.body.contact_id || req.body.id;
+        const locationId = req.body.location?.id || req.body.locationId; // Extract Location ID
         const msg = req.body.message || {};
         const userMessage = msg.body;
 
@@ -20,11 +20,11 @@ app.post('/ghl-webhook', async (req, res) => {
             return;
         }
 
-        console.log("New message from contact " + contactId + ": " + userMessage);
+        console.log("New message from contact " + contactId + " at location " + locationId + ": " + userMessage);
 
         const botReply = "Hi! I'm Aria, Aboova's digital assistant. I received your message: " + userMessage + ". How can I help you grow today?";
 
-        await sendReplyToGHL(contactId, botReply);
+        await sendReplyToGHL(contactId, botReply); // No longer strictly need location ID here, but keeping parsing for logs.
 
     } catch (error) {
         console.error('Error processing webhook:', error.message);
@@ -45,7 +45,9 @@ async function sendReplyToGHL(contactId, text) {
                     'Authorization': 'Bearer ' + GHL_API_TOKEN,
                     'Version': '2021-07-28',
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json' 
+                    // Note: API v2 uses the Bearer token's scope to infer location if it's a Location token. 
+                    // However, we are using an Agency token.
                 }
             }
         );
