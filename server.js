@@ -1,12 +1,10 @@
-const express = require('express');
-const axios = require('axios');
-
 const app = express();
 app.use(express.json());
 
 const GHL_API_TOKEN = process.env.GHL_API_TOKEN;
 
 app.post('/ghl-webhook', async (req, res) => {
+    console.log("FULL GHL PAYLOAD:", JSON.stringify(req.body, null, 2));
     res.status(200).send('Webhook received');
 
     try {
