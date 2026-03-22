@@ -56,4 +56,3 @@ async function sendReplyToGHL(conversationId, contactId, text) {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Aria Webhook running on port " + PORT));
-```
