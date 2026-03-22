@@ -7,36 +7,36 @@ app.use(express.json());
 const GHL_API_TOKEN = process.env.GHL_API_TOKEN;
 
 app.post('/ghl-webhook', async (req, res) => {
-    console.log("FULL GHL PAYLOAD:", JSON.stringify(req.body, null, 2));
     res.status(200).send('Webhook received');
 
     try {
-        const { message, conversationId, contactId, type } = req.body;
+        // Extract the data in the exact format GHL Workflows send it
+        const contactId = req.body.contact_id || req.body.id;
+        const msg = req.body.message || {};
+        const userMessage = msg.body;
 
-        if (type !== 'InboundMessage' || !message || !message.body) {
-            console.log('Ignoring non-inbound or empty message.');
+        if (!userMessage) {
+            console.log('No message body found, ignoring.');
             return;
         }
 
-        const userMessage = message.body;
-        console.log("New message from " + contactId + ": " + userMessage);
+        console.log("New message from contact " + contactId + ": " + userMessage);
 
         const botReply = "Hi! I'm Aria, Aboova's digital assistant. I received your message: " + userMessage + ". How can I help you grow today?";
 
-        await sendReplyToGHL(conversationId, contactId, botReply);
+        await sendReplyToGHL(contactId, botReply);
 
     } catch (error) {
         console.error('Error processing webhook:', error.message);
     }
 });
 
-async function sendReplyToGHL(conversationId, contactId, text) {
+async function sendReplyToGHL(contactId, text) {
     try {
         await axios.post(
             'https://services.leadconnectorhq.com/conversations/messages',
             {
                 type: 'Live_Chat',
-                conversationId: conversationId,
                 contactId: contactId,
                 message: text
             },
@@ -49,7 +49,7 @@ async function sendReplyToGHL(conversationId, contactId, text) {
                 }
             }
         );
-        console.log('Successfully replied via GHL API');
+        console.log('Successfully replied via GHL API!');
     } catch (error) {
         console.error('Failed to reply via GHL:', error.response ? error.response.data : error.message);
     }
