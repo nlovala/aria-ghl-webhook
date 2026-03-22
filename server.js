@@ -1,0 +1,91 @@
+
+```javascript
+const express = require('express');
+const axios = require('axios');
+
+const app = express();
+app.use(express.json());
+
+// These variables will be set securely inside Render
+const GHL_API_TOKEN = process.env.GHL_API_TOKEN;
+
+app.post('/ghl-webhook', async (req, res) => {
+    // 1. Acknowledge receiving the webhook from GHL immediately
+    res.status(200).send('Webhook received');
+
+    try {
+        const { message, conversationId, contactId, type } = req.body;
+
+        // 2. We only want to reply to actual incoming messages
+        if (type !== 'InboundMessage' || !message || !message.body) {
+            console.log('Ignoring non-inbound or empty message.');
+            return;
+        }
+
+        const userMessage = message.body;
+        console.log(`New message from ${contactId}: "${userMessage}"`);
+
+        // 3. (Placeholder) This is the bot's direct reply to prove it works.
+        // Once this is live, I will connect my full AI logic here!
+        const botReply = `Hi! I'm Aria, Aboova's digital assistant. I received your message: "${userMessage}". How can I help you grow today?`;
+
+        // 4. Send the reply back to the GHL Chat Widget
+        await sendReplyToGHL(conversationId, contactId, botReply);
+
+    } catch (error) {
+        console.error('Error processing webhook:', error.message);
+    }
+});
+
+async function sendReplyToGHL(conversationId, contactId, text) {
+    try {
+        await axios.post(
+            'https://services.leadconnectorhq.com/conversations/messages',
+            {
+                type: 'Live_Chat', // Specifically targeting the Chat Widget
+                conversationId: conversationId,
+                contactId: contactId,
+                message: text
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${GHL_API_TOKEN}`,
+                    'Version': '2021-07-28',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            }
+        );
+        console.log('Successfully replied via GHL API');
+    } catch (error) {
+        console.error('Failed to reply via GHL:', error.response?.data || error.message);
+    }
+}
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Aria Webhook running on port ${PORT}`));
+```
+4. Click the green *"Commit changes..."* button in the top right, and confirm by clicking *"Commit changes"* in the pop-up box.
+
+*File 2: The Setup File (`package.json`)*
+
+Now, let's add the second file.
+1. You should be back on your main repository screen. Click *"Add file"* -> *"Create new file"* again.
+2. In the "Name your file..." box, type exactly: `package.json`
+3. Paste this exact code:
+
+```json
+{
+  "name": "aria-ghl-webhook",
+  "version": "1.0.0",
+  "description": "GHL webhook receiver for Aria",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "express": "^4.19.2"
+  }
+}
+```
