@@ -12,22 +12,31 @@ app.post('/webhook', async (req, res) => {
     // 1. Immediately acknowledge the webhook to GoHighLevel (prevents timeout)
     res.status(200).send({ message: 'Webhook received' });
 
-    // 2. Extract Data from GHL Payload
+    // 2. Extract Data from GHL Workflow Payload
     const data = req.body;
-    const userMessage = data.message || data.body; 
-    const contactId = data.contact_id;
-    const conversationId = data.conversation_id;
-    const locationId = data.location_id || data.locationId;
-    const channel = data.type || "email"; 
+    
+    // Read the nested message body
+    let userMessage = "";
+    if (data.message && data.message.body) {
+        userMessage = data.message.body;
+    } else {
+        userMessage = data.message || data.body;
+    }
 
-    // Safety checks
-    if (!userMessage || !conversationId) {
-        console.log("Missing message or conversation ID. Payload:", data);
+    const contactId = data.contact_id;
+    // Workflows don't always pass conversation_id, but the V2 API can use contactId to find it!
+    const conversationId = data.conversation_id || ""; 
+    const locationId = (data.location && data.location.id) ? data.location.id : (data.location_id || data.locationId);
+    const channel = "Email"; // Email type handles Widget routing best
+
+    // Safety check
+    if (!userMessage || !contactId) {
+        console.log("Missing message or contact ID. Payload:", JSON.stringify(data, null, 2));
         return;
     }
 
     try {
-        console.log(`Processing inbound message from ${contactId}: ${userMessage}`);
+        console.log(`Processing inbound message from Contact ${contactId}: ${userMessage}`);
 
         // 3. Ask the AI Brain (Gemini 3.1 Pro via OpenRouter) what to say
         const aiResponseText = await getAiResponse(userMessage);
@@ -36,7 +45,7 @@ app.post('/webhook', async (req, res) => {
         await sendGhlReply(locationId, conversationId, contactId, aiResponseText, channel);
 
     } catch (error) {
-        console.error('Error processing webhook:', error);
+        console.error('Error processing webhook:', error.response ? error.response.data : error.message);
     }
 });
 
@@ -68,14 +77,17 @@ Respond directly to the user's inquiry based on Aboova's capabilities (AI Growth
 async function sendGhlReply(locationId, conversationId, contactId, messageText, channel) {
     const url = 'https://services.leadconnectorhq.com/conversations/messages';
     
-    // GHL allows sending to 'Widget' (Live Chat) as 'email' or 'sms' depending on config. "Email" handles widget well.
     const payload = {
         locationId: locationId,
-        type: "Email", 
+        type: channel, 
         message: messageText,
-        conversationId: conversationId,
         contactId: contactId
     };
+
+    // Only attach conversationId if it was provided
+    if (conversationId) {
+        payload.conversationId = conversationId;
+    }
 
     const headers = {
         'Authorization': `Bearer ${GHL_API_TOKEN}`,
@@ -85,7 +97,7 @@ async function sendGhlReply(locationId, conversationId, contactId, messageText, 
     };
 
     await axios.post(url, payload, { headers });
-    console.log(`Reply successfully sent to Conversation ID: ${conversationId}`);
+    console.log(`Reply successfully sent to Contact ID: ${contactId}`);
 }
 
 const PORT = process.env.PORT || 3000;
