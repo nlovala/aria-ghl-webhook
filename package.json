@@ -1,14 +1,14 @@
-
 {
-  "name": "aria-ghl-webhook",
+  "name": "ghl-webhook",
   "version": "1.0.0",
-  "description": "GHL webhook receiver for Aria",
+  "description": "Aboova AI Webhook for GoHighLevel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "express": "^4.18.2",
     "axios": "^1.6.8",
-    "express": "^4.19.2"
+    "dotenv": "^16.4.5"
   }
 }
