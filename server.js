@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -23,11 +24,18 @@ app.post('/webhook', async (req, res) => {
         userMessage = data.message || data.body;
     }
 
-    const contactId = data.contact_id;
-    // Workflows don't always pass conversation_id, but the V2 API can use contactId to find it!
-    const conversationId = data.conversation_id || ""; 
+    const contactId = data.contact_id || data.contactId;
+    const conversationId = data.conversation_id || data.conversationId || ""; 
     const locationId = (data.location && data.location.id) ? data.location.id : (data.location_id || data.locationId);
-    const channel = "Email"; // Email type handles Widget routing best
+    
+    // GHL sends the channel type (e.g., Live_Chat, SMS, Email). Default to Live_Chat if missing.
+    let channel = data.type || "Live_Chat";
+    // Fix formatting if it just says 'live_chat' or 'widget'
+    if (channel.toLowerCase() === 'widget' || channel.toLowerCase() === 'live_chat') {
+        channel = "Live_Chat"; 
+    } else if (channel.toLowerCase() === 'sms') {
+        channel = "SMS";
+    }
 
     // Safety check
     if (!userMessage || !contactId) {
@@ -36,7 +44,7 @@ app.post('/webhook', async (req, res) => {
     }
 
     try {
-        console.log(`Processing inbound message from Contact ${contactId}: ${userMessage}`);
+        console.log(`Processing inbound message from Contact ${contactId} on channel ${channel}: ${userMessage}`);
 
         // 3. Ask the AI Brain (Gemini 3.1 Pro via OpenRouter) what to say
         const aiResponseText = await getAiResponse(userMessage);
@@ -97,10 +105,11 @@ async function sendGhlReply(locationId, conversationId, contactId, messageText, 
     };
 
     await axios.post(url, payload, { headers });
-    console.log(`Reply successfully sent to Contact ID: ${contactId}`);
+    console.log(`Reply successfully sent to Contact ID: ${contactId} via ${channel}`);
 }
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Aboova AI Webhook Server is running on port ${PORT}`);
 });
+
