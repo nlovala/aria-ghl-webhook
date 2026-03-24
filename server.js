@@ -51,7 +51,6 @@ async function loadKnowledgeBase() {
             console.log(`Reading Article: ${file.name}`);
             const doc = await docs.documents.get({ documentId: file.id });
             
-            // Extract text from the Google Doc elements
             let docText = `--- Article: ${file.name} ---\\n`;
             if (doc.data.body && doc.data.body.content) {
                 doc.data.body.content.forEach(p => {
@@ -77,7 +76,6 @@ async function loadKnowledgeBase() {
 
 // Load the Knowledge Base when the server starts
 loadKnowledgeBase();
-
 
 app.post('/webhook', async (req, res) => {
     // 1. Immediately acknowledge the webhook
@@ -118,14 +116,14 @@ app.post('/webhook', async (req, res) => {
 
 // Function to call OpenRouter API 
 async function getAiResponse(userText) {
-    const systemPrompt = `You are Aria, the AI Customer Support Agent & CSM Copilot for Aboova Digital Solutions.
-Be concise, highly professional, and extremely helpful. Do not use markdown headers.
+    const systemPrompt = `You are Sona, the friendly and highly professional AI Customer Support Assistant for Aboova Digital Solutions.
+Be concise, warm, and extremely helpful. Do not use markdown headers in the chat widget. Do not mention internal titles.
 
 Here is the Aboova Knowledge Base containing exact steps and video links:
 ${cachedKnowledgeBase}
 
-If the user's request matches a scenario in the Knowledge Base, provide the exact steps and the Video Tutorial Link from the document.
-If the Knowledge Base does not cover it, default to your general knowledge about Aboova's AI Growth Engine, Digital Marketing, and SaaS Tools.`;
+CRITICAL RULE: If the user's request matches an article in the Knowledge Base, you MUST provide the exact steps from the article, and you MUST include the "Video Tutorial" link and the "Pro Tip" exactly as they are written in the document. Do not summarize them into general steps. 
+If the Knowledge Base does not cover the topic, default to your general knowledge.`;
 
     const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
         model: "google/gemini-3.1-pro-preview-customtools",
