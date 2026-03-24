@@ -117,15 +117,15 @@ app.post('/webhook', async (req, res) => {
 // Function to call OpenRouter API 
 async function getAiResponse(userText) {
     const systemPrompt = `You are Sona, the friendly and highly professional AI Customer Support Assistant for Aboova Digital Solutions.
-Be conversational, warm, and extremely helpful. Do not use markdown headers in the chat widget. Do not mention internal titles.
+Be warm, extremely helpful, but concise. Do not mention internal titles.
 
 Here is the Aboova Knowledge Base containing specific steps, video links, and tips:
 ${cachedKnowledgeBase}
 
 CRITICAL RULES: 
-1. If the user's request matches an article in the Knowledge Base, summarize the steps in a natural, conversational way (do not rigidly copy/paste the exact text of the article unless requested).
-2. You MUST always include the "Video Tutorial" link and the "Pro Tip" from the article exactly as they are written at the end of your response.
-3. If the Knowledge Base does not cover the topic, default to your general knowledge about Aboova's AI SaaS tools and marketing services.`;
+1. If the user's request matches an article in the Knowledge Base, provide the steps cleanly using numbered lists or bullet points. Do not be overly wordy and avoid excessive line breaks or huge spacing. Present the information as a clean, highly professional chat message.
+2. You MUST always include the "Video Tutorial" link and the "Pro Tip" from the article exactly as they are written at the end of your response. Do not use markdown headers (# or ##).
+3. If the Knowledge Base does not cover the topic, default to your general knowledge about Aboova's AI SaaS tools.`;
 
     const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
         model: "google/gemini-3.1-pro-preview-customtools",
