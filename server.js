@@ -77,6 +77,45 @@ async function loadKnowledgeBase() {
 // Load the Knowledge Base when the server starts
 loadKnowledgeBase();
 
+
+// GHL API Helper Headers
+const ghlHeaders = {
+    'Authorization': `Bearer ${GHL_API_TOKEN}`,
+    'Version': '2021-07-28',
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+};
+
+// Fetch Contact Data from GHL
+async function getContactData(contactId) {
+    try {
+        const url = `https://services.leadconnectorhq.com/contacts/${contactId}`;
+        const response = await axios.get(url, { headers: ghlHeaders });
+        const tags = response.data.contact.tags || [];
+        const name = response.data.contact.firstName || "Customer";
+        
+        let tier = "Standard Customer";
+        if (tags.includes("css managed customer")) tier = "Managed Success Customer";
+        else if (tags.includes("css standard customer")) tier = "Standard Customer";
+        
+        return { name, tier, tags };
+    } catch (e) {
+        console.error("Failed to fetch contact data:", e.message);
+        return { name: "Customer", tier: "Unknown Tier", tags: [] };
+    }
+}
+
+// Add Tag to Contact in GHL
+async function addContactTag(contactId, tag) {
+    try {
+        const url = `https://services.leadconnectorhq.com/contacts/${contactId}/tags`;
+        await axios.post(url, { tags: [tag] }, { headers: ghlHeaders });
+        console.log(`Successfully added tag '${tag}' to contact ${contactId}`);
+    } catch (e) {
+        console.error(`Failed to add tag '${tag}':`, e.message);
+    }
+}
+
 app.post('/webhook', async (req, res) => {
     // 1. Immediately acknowledge the webhook
     res.status(200).send({ message: 'Webhook received' });
@@ -106,26 +145,58 @@ app.post('/webhook', async (req, res) => {
     }
 
     try {
-        console.log(`Processing inbound message: ${userMessage}`);
-        const aiResponseText = await getAiResponse(userMessage);
+        console.log(`Processing inbound message from Contact ${contactId} on channel ${channel}: ${userMessage}`);
+
+        // Fetch Contact Tier Logic
+        const contactData = await getContactData(contactId);
+
+        // Ask the AI Brain (Gemini 3.1 Pro via OpenRouter)
+        let aiResponseText = await getAiResponse(userMessage, contactData.name, contactData.tier);
+
+        // Handover Logic Interception
+        if (aiResponseText.includes("[HANDOVER]")) {
+            console.log("ESCALATION TRIGGERED BY AI!");
+            aiResponseText = aiResponseText.replace("[HANDOVER]", "").trim();
+            // Send standard handover message if AI didn't provide one
+            if (!aiResponseText) {
+                aiResponseText = "I'll connect you with one of our support specialists who can take a closer look. They'll review your issue and reply shortly.";
+            }
+            // Add the handover tag in GHL
+            await addContactTag(contactId, "css human handover");
+        }
+        
+        // Send the AI's reply back to the GoHighLevel Conversation
         await sendGhlReply(locationId, conversationId, contactId, aiResponseText, channel);
+
     } catch (error) {
         console.error('Error processing webhook:', error.message);
     }
 });
 
 // Function to call OpenRouter API 
-async function getAiResponse(userText) {
+async function getAiResponse(userText, customerName, customerTier) {
     const systemPrompt = `You are Sona, the friendly and highly professional AI Customer Support Assistant for Aboova Digital Solutions.
-Be warm, extremely helpful, but concise. Do not mention internal titles.
 
-Here is the Aboova Knowledge Base containing specific steps, video links, and tips:
+Current Customer: ${customerName}
+Customer Tier: ${customerTier}
+
+Your Role & Tone:
+Be extremely helpful, concise, and warm. Do not use markdown headers (# or ##) or mention internal technical titles.
+Adapt your response slightly based on the Customer Tier:
+- If "Standard Customer": Emphasize self-service help and tutorials.
+- If "Managed Success Customer": Provide "White-glove" conversational responses and reassure them their dedicated manager is monitoring the account.
+
+HUMAN HANDOVER RULES:
+If the user asks for a human, or if you cannot find the answer in the Knowledge Base to resolve their issue, you MUST append the exact word [HANDOVER] to the very end of your response. 
+Reassure them you are connecting them to a human specialist.
+
+Here is the Aboova Knowledge Base containing all specific steps, video links, and tips:
 ${cachedKnowledgeBase}
 
-CRITICAL RULES: 
-1. If the user's request matches an article in the Knowledge Base, provide the steps cleanly using numbered lists or bullet points. Do not be overly wordy and avoid excessive line breaks or huge spacing. Present the information as a clean, highly professional chat message.
-2. You MUST always include the "Video Tutorial" link and the "Pro Tip" from the article exactly as they are written at the end of your response. Do not use markdown headers (# or ##).
-3. If the Knowledge Base does not cover the topic, default to your general knowledge about Aboova's AI SaaS tools.`;
+CRITICAL RULES:
+1. If the user's request matches an article, provide the steps cleanly using numbered lists or bullet points without massive spacing. Keep formatting looking like a clean professional text.
+2. You MUST always include the "Video Tutorial" link and the "Pro Tip" from the article exactly as they are written at the end of your response.
+3. If no article exists, default to your general knowledge about Aboova's AI SaaS tools, but do NOT make up fake video links.`;
 
     const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
         model: "google/gemini-3.1-pro-preview-customtools",
