@@ -14,10 +14,10 @@ const GOOGLE_CREDENTIALS = process.env.GOOGLE_CREDENTIALS;
 // PORTFOLIO CONFIGURATION (Used for the /assign webhook)
 // ---------------------------------------------------------
 const PORTFOLIOS = [
-    { name: "California", tag: "css portfolio | California", userId: "iB9bqEHShZWespVRwwNa" },
+    { name: "California", tag: "css portfolio | California", userId: "ib9bqEHShZWespVRwwNa" },
     { name: "Colorado", tag: "css portfolio | Colorado", userId: "dFuqKypWMpfvAfg6pHhg" },
-    { name: "Connecticut", tag: "css portfolio | Connecticut", userId: "6q5FEvL51cOoSo1Vwlce" },
-    { name: "Delaware", tag: "css portfolio | Delaware", userId: "5Tjye3dUlKl99sPlSObF" }
+    { name: "Connecticut", tag: "css portfolio | Connecticut", userId: "6q5FEvL51c0oSo1Vwlce" },
+    { name: "Delaware", tag: "css portfolio | Delaware", userId: "5Tjye3dUiKI99sPiSObF" }
 ];
 
 // The exact ID of the "Aboova Support Knowledge Base" folder
@@ -138,18 +138,17 @@ app.post('/assign', async (req, res) => {
 
         console.log(`Assigning contact to ${winningPortfolio.name} (Current load: ${winningPortfolio.count} clients)`);
 
-        // Update the Contact in GHL (Add the Tag AND Assign the User)
+        // Safely update the Contact in GHL (Assign User ONLY) so we don't erase existing tags
         const updateUrl = `https://services.leadconnectorhq.com/contacts/${contactId}`;
-        const payload = {
-            assignedTo: [winningPortfolio.userId],
-            tags: [winningPortfolio.tag]
-        };
+        await axios.put(updateUrl, { assignedTo: winningPortfolio.userId }, { headers: ghlHeaders });
+        console.log(`Successfully assigned ${contactId} to User ID: ${winningPortfolio.userId}!`);
 
-        await axios.put(updateUrl, payload, { headers: ghlHeaders });
-        console.log(`Successfully assigned ${contactId} to ${winningPortfolio.name}!`);
+        // Safely Append the Tag separately via the safe Tag endpoint
+        await addContactTag(contactId, winningPortfolio.tag);
+        console.log(`Successfully appended portfolio tag for ${winningPortfolio.name}!`);
 
     } catch (error) {
-        console.error("Error during Portfolio Assignment:", error.message);
+        console.error("Error during Portfolio Assignment:", error.response ? JSON.stringify(error.response.data) : error.message);
     }
 });
 
@@ -181,6 +180,7 @@ app.post('/webhook', async (req, res) => {
     if (!userMessage || !contactId) return;
 
     try {
+        console.log(`Processing inbound message from Contact ${contactId} on channel ${channel}: ${userMessage}`);
         const contactData = await getContactData(contactId);
         let aiResponseText = await getAiResponse(userMessage, contactData.name, contactData.tier);
         
